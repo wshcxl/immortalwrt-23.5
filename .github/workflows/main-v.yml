@@ -1,4 +1,4 @@
-name: ImmortalWrt (Alternative)
+name: ImmortalWrt (Alternative Final)
 
 on:
   workflow_dispatch:
@@ -19,7 +19,8 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y \
             build-essential libncurses5-dev gawk zlib1g-dev \
-            git python3 unzip wget curl rsync
+            git python3 unzip wget curl rsync \
+            python3-pip
 
       - name: Add 5G modem support
         run: |
@@ -39,8 +40,13 @@ jobs:
       - name: Download package sources
         run: make download -j$(nproc)
 
+      - name: Install missing Python dependencies
+        run: |
+          pip3 install pyyaml pygments markdown pyunidecode
+
       - name: Start compilation
-        run: make -j$(nproc) V=s
+        run: |
+          make -j$(nproc) V=s
 
       - name: Save firmware artifacts
         run: |
