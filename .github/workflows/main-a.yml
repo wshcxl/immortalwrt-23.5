@@ -1,70 +1,61 @@
-name: ImmortalWrt (Alternative Final)
+name: ImmortalWrt (防崩溃修正版)
 
 on:
   workflow_dispatch:
 
 jobs:
-  build_firmware:
+  编译固件任务:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - name: 拉取源码仓库
+        uses: actions/checkout@v4
         with:
           repository: wshcxl/immortalwrt-23.5
           ref: master
           fetch-depth: 0
 
-      - name: Prepare build environment
+      - name: 安装系统依赖
         run: |
           sudo apt-get update
           sudo apt-get install -y \
             build-essential libncurses5-dev gawk zlib1g-dev \
-            git python3 unzip wget curl rsync \
-            python3-pip
+            git python3 unzip wget curl rsync python3-pip
 
-      - name: Add 5G modem support
+      - name: 强制安装 Python 依赖 (修复核心报错)
+        run: |
+          pip3 install --break-system-packages pyyaml pygments markdown pyunidecode
+
+      - name: 添加 5G 模组支持
         run: |
           rm -rf package/5g-modem-support
-          git clone https://github.com/wshcxl/5G-Modem-Support.git package/5g-modem-support
+          git clone https://github.com/wshcxl/5G-Modem-Support.git package/5g-modem-support || true
 
-      - name: Install feeds
+      - name: 更新并安装 Feeds
         run: |
           ./scripts/feeds update -a
           ./scripts/feeds install -a
 
-      - name: Apply configuration
+      - name: 加载设备配置文件
         run: |
           cp configs/phicomm_psg1218a.config .config
           make defconfig
 
-      - name: Download package sources
+      - name: 下载软件包源码
         run: make download -j$(nproc)
 
-      - name: Install missing Python dependencies
-        run: |
-          pip3 install pyyaml pygments markdown pyunidecode
+      - name: 开始多线程编译
+        run: make -j$(nproc) V=s
 
-      - name: Start compilation
-        run: |
-          make -j$(nproc) V=s
-
-      - name: Save firmware artifacts
+      - name: 收集固件文件
         run: |
           mkdir -p firmware
-
-          echo "Scanning for firmware files..."
           find bin -type f -name "*psg1218a*.bin" -exec cp {} firmware/ \;
+          ls -lh firmware
 
-          if [ -z "$(ls firmware)" ]; then
-            echo "WARNING: No firmware found!"
-            ls -R bin > firmware/bin_structure.txt
-          else
-            echo "Firmware found:"
-            ls -lh firmware
-          fi
-
-      - uses: actions/upload-artifact@v4
+      - name: 上传固件
+        uses: actions/upload-artifact@v4
         with:
-          name: immortalwrt-psg1218a
+          name: immortalwrt-psg1218a-防爆版
           path: firmware/*
           if-no-files-found: warn
