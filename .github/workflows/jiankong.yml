@@ -1,0 +1,141 @@
+name: 🚀 极路由4增强版 - 监控加速去广告版
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build_firmware:
+    runs-on: ubuntu-latest
+    env:
+      # 解决 Node.js 20 强制升级到 24 的报警
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+      # 启用奶牛快传上传
+      UPLOAD_COWTRANSFER: true
+
+    steps:
+      - name: 📦 1. 拉取源码
+        uses: actions/checkout@v4
+
+      - name: ⚙️ 2. 准备环境与依赖
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential libncurses5-dev gawk \
+            zlib1g-dev git python3 python3-pip unzip wget curl file
+          
+          # 安装 Python 依赖
+          pip3 install --break-system-packages pyyaml pygments markdown Unidecode
+
+      - name: 📥 3. 添加全家桶插件 (去广告 + 监控支持)
+        run: |
+          echo "👉 正在下载各类插件源码..."
+          
+          # 1. 5G 插件
+          git clone https://github.com/wshcxl/5G-Modem-Support.git package/5g-modem-support
+          
+          # 2. AdGuard Home (去广告核心)
+          git clone https://github.com/kongfl888/luci-app-adguardhome.git package/luci-app-adguardhome
+          
+          # 3. SSR+ (含V2Ray核心)
+          git clone https://github.com/fw876/helloworld.git package/luci-app-ssr-plus
+          
+          # 4. 网易云解锁
+          git clone https://github.com/UnblockNeteaseMusic/luci-app-unblockneteasemusic.git package/luci-app-unblockneteasemusic
+          
+          # 5. 短信工具
+          git clone https://github.com/4IceG/luci-app-sms-tool.git package/luci-app-sms-tool
+
+      - name: ⚡ 4. 更新 Feeds (获取最新软件列表)
+        run: |
+          ./scripts/feeds update -a
+          ./scripts/feeds install -a
+
+      - name: 📝 5. 深度配置 (去下载 + 加监控)
+        run: |
+          rm -f .config
+          
+          # --- 基础设备锁定 ---
+          echo "CONFIG_TARGET_ramips=y" >> .config
+          echo "CONFIG_TARGET_ramips_mt7621=y" >> .config
+          echo "CONFIG_TARGET_ramips_mt7621_DEVICE_hiwifi_hc5962=y" >> .config
+          echo "CONFIG_TARGET_ROOTFS_SQUASHFS=y" >> .config
+          
+          # --- 基础驱动 ---
+          echo "CONFIG_PACKAGE_kmod-usb-net-rndis=y" >> .config
+          echo "CONFIG_PACKAGE_kmod-usb-net=y" >> .config
+          echo "CONFIG_PACKAGE_kmod-usb3=y" >> .config
+          echo "CONFIG_PACKAGE_kmod-usb-serial=y" >> .config
+          echo "CONFIG_PACKAGE_kmod-usb-serial-option=y" >> .config
+          echo "CONFIG_PACKAGE_usbmode=y" >> .config
+          echo "CONFIG_PACKAGE_comgt=y" >> .config
+          
+          # --- 核心功能 ---
+          echo "CONFIG_PACKAGE_luci=y" >> .config
+          echo "CONFIG_PACKAGE_luci-i18n-base-zh-cn=y" >> .config
+          echo "CONFIG_PACKAGE_luci-app-opkg=y" >> .config # 软件包管理，以后手动装EasyGBS用
+          
+          # --- 插件启用 ---
+          
+          # 1. 5G 插件
+          echo "CONFIG_PACKAGE_luci-app-5g-modem-support=y" >> .config
+          echo "CONFIG_PACKAGE_luci-i18n-5g-modem-support-zh-cn=y" >> .config
+          
+          # 2. AdGuard Home (去广告)
+          echo "CONFIG_PACKAGE_luci-app-adguardhome=y" >> .config
+          
+          # 3. SSR+ (V2Ray)
+          echo "CONFIG_PACKAGE_luci-app-ssr-plus=y" >> .config
+          echo "CONFIG_PACKAGE_luci-app-ssr-plus_INCLUDE_V2ray=y" >> .config
+          
+          # 4. 网易云解锁
+          echo "CONFIG_PACKAGE_luci-app-unblockneteasemusic=y" >> .config
+          
+          # 5. 短信工具
+          echo "CONFIG_PACKAGE_luci-app-sms-tool=y" >> .config
+          
+          # 6. TurboACC 网络加速 (必开，省CPU)
+          echo "CONFIG_PACKAGE_luci-app-turboacc=y" >> .config
+          echo "CONFIG_PACKAGE_kmod-tcp-bbr=y" >> .config
+          
+          # 7. UPnP (监控端口自动映射)
+          echo "CONFIG_PACKAGE_luci-app-upnp=y" >> .config
+          echo "CONFIG_PACKAGE_miniupnpd=y" >> .config
+          
+          # 8. 动态域名 DDNS (配合花生壳实现远程访问)
+          echo "CONFIG_PACKAGE_luci-app-ddns=y" >> .config
+          echo "CONFIG_PACKAGE_ddns-scripts=y" >> .config
+          echo "CONFIG_PACKAGE_ddns-scripts_freedns_42_pl=y" >> .config
+          echo "CONFIG_PACKAGE_ddns-scripts_no-ip_com=y" >> .config
+          echo "CONFIG_PACKAGE_ddns-scripts_oray_com=y" >> .config # 花生壳支持
+          echo "CONFIG_PACKAGE_ddns-scripts_godaddy_com=y" >> .config
+
+          # 生成配置
+          make defconfig
+
+      - name: 📥 6. 下载源码包
+        run: make download -j$(nproc)
+
+      - name: 🏗️ 7. 开始编译
+        run: make -j$(nproc) V=s
+
+      - name: 🧹 8. 收集固件
+        run: |
+          mkdir -p firmware_output
+          find bin -type f -name "*hiwifi*factory*.bin" -exec cp {} firmware_output/ \; || true
+          if [ ! "$(ls -A firmware_output/*.bin 2>/dev/null)" ]; then
+             find bin -type f -name "*hiwifi*squashfs*.bin" -exec cp {} firmware_output/ \;
+          fi
+          ls -lh firmware_output/
+
+      # 9. 上传到奶牛快传
+      - name: 📤 9.1 上传至 GitHub Artifacts (备用)
+        uses: actions/upload-artifact@v4
+        with:
+          name: 原始固件包
+          path: firmware_output/*.bin
+          retention-days: 7
+
+      - name: 📤 9.2 上传至 奶牛快传 (Cowtransfer)
+        uses: Mikubill/transfer@master
+        with:
+          file: firmware_output/*.bin
+          to: cowtransfer
