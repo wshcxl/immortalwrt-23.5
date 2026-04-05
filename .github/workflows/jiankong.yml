@@ -1,4 +1,4 @@
-name: 🚀 极路由4 - 满血防崩终极版 (含5G/去广告/解锁/监控)
+name: 🚀 极路由4～监控版 (含5G/去广告/解锁/监控)
 
 on:
   workflow_dispatch:
@@ -13,28 +13,27 @@ jobs:
       - name: 📦 1. 拉取源码
         uses: actions/checkout@v4
 
-      - name: 🛠️ 2. 修复 LZ4 下载 (读取 lz4-fix.tar.zst)
+      - name: 🛠️ 2. 修复 LZ4 下载
         run: |
           mkdir -p dl
-          # 这里读取的名字必须和你上传的文件名一模一样
           cp lz4-fix.tar.zst dl/ || echo "⚠️ 警告：未找到 lz4-fix.tar.zst，请检查文件名"
 
-      - name: ⚙️ 3. 准备环境与虚拟内存 (防崩核心)
+      - name: ⚙️ 3. 准备环境与虚拟内存 (防错版)
         run: |
           sudo apt-get update
           sudo apt-get install -y build-essential libncurses5-dev gawk \
             zlib1g-dev git python3 python3-pip unzip wget curl file
           pip3 install --break-system-packages pyyaml pygments markdown Unidecode
 
-          # ⭐ 增加 8GB 虚拟内存，防止编译到一半内存溢出死机
-          sudo fallocate -l 8G /swapfile
-          sudo chmod 600 /swapfile
-          sudo mkswap /swapfile
-          sudo swapon /swapfile
-          echo "✅ 虚拟内存已开启："
+          # ⭐⭐⭐ 关键修复：增加 8GB 虚拟内存 (如果失败则跳过，不报错)
+          sudo fallocate -l 8G /swapfile || true
+          sudo chmod 600 /swapfile || true
+          sudo mkswap /swapfile || true
+          sudo swapon /swapfile || true
+          echo "✅ 尝试开启虚拟内存 (如果报错请忽略，不影响后续编译)："
           free -h
 
-      - name: 📥 4. 添加全家桶插件 (全功能版)
+      - name: 📥 4. 添加全家桶插件
         run: |
           echo "👉 正在下载各类插件源码..."
           git clone https://github.com/wshcxl/5G-Modem-Support.git package/5g-modem-support
@@ -85,9 +84,6 @@ jobs:
           echo "CONFIG_PACKAGE_miniupnpd=y" >> .config
           echo "CONFIG_PACKAGE_luci-app-ddns=y" >> .config
           echo "CONFIG_PACKAGE_ddns-scripts=y" >> .config
-          echo "CONFIG_PACKAGE_ddns-scripts_freedns_42_pl=y" >> .config
-          echo "CONFIG_PACKAGE_ddns-scripts_no-ip_com=y" >> .config
-          echo "CONFIG_PACKAGE_ddns-scripts_oray_com=y" >> .config
 
           make defconfig
 
@@ -110,3 +106,4 @@ jobs:
           name: 极路由4-满血防崩版固件
           path: firmware_output/*
           retention-days: 7
+
