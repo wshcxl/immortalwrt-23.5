@@ -43,7 +43,7 @@ jobs:
           ./scripts/feeds install v2ray-core
           ./scripts/feeds install luci-app-v2ray-server
 
-          # 3. 网易云解锁 (你刚才提醒加上的)
+          # 3. 网易云解锁
           ./scripts/feeds install luci-app-unblockneteasemusic
 
           # 4. 监控全家桶
@@ -106,8 +106,9 @@ jobs:
           make -j$(nproc)
           
       # --- 上传 ---
+      # 这里已经更新为 v4 版本，解决报错问题
       - name: 上传固件
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: 极路由4-监控板固件
           path: bin/targets/ramips/mt7621/
