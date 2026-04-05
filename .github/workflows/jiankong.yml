@@ -1,78 +1,114 @@
-name: 极路由4 - 双线程满血监控版 (双保险机制)
+name: 极路由4 - 监控板 (V2Ray+网易云+全家桶)
 
 on:
   workflow_dispatch:
 
 jobs:
-  # 定义两个并行的编译任务，只要有一个成功，整个流程就算成功
-  build_firmware_thread_1:
+  build_firmware:
     runs-on: ubuntu-latest
-    env:
-      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-    steps:
-      - name: 1. 拉取源码
-        uses: actions/checkout@v4
 
-      - name: 2. 修复 LZ4 下载 (本地文件注入)
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v3
+
+      # --- 修复 LZ4 ---
+      - name: 修复 LZ4 源码包
         run: |
           mkdir -p dl
-          # 核心修复：把你上传的 lz4-fix.tar.zst 复制并重命名为脚本预期的名字
-          cp lz4-fix.tar.zst dl/lz4-1.10.0.tar.zst
-          echo "✅ 已注入 LZ4 修复包"
+          if [ -f "lz4-1.10.0.tar.gz" ]; then
+            cp -f lz4-1.10.0.tar.gz dl/lz4-1.10.0.tar.gz
+            echo "✅ LZ4 修复包已就位"
+          else
+            echo "❌ 错误：请在仓库根目录上传 lz4-1.10.0.tar.gz"
+            exit 1
+          fi
 
-      - name: 3. 准备环境与虚拟内存 (线程1)
+      # --- 安装依赖 ---
+      - name: 安装编译环境
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential libncurses5-dev gawk \
-            zlib1g-dev git python3 python3-pip unzip wget curl file
-          pip3 install --break-system-packages pyyaml pygments markdown Unidecode
+          sudo apt-get install -y ack antlr3 asciidoc autoconf automake autopoint binutils bison build-essential bzip2 ccache cmake cpio curl device-tree-compiler fastjar flex gawk gettext gcc-multilib g++-multilib git gperf haveged help2man intltool libc6-dev-i386 libelf-dev libglib2.0-dev libgmp3-dev libltdl-dev libmpc-dev libmpfr-dev libncurses5-dev libncursesw5-dev libpython3-dev libreadline-dev libssl-dev libtool lrzsz mkisofs msmtp ninja-build p7zip p7zip-full patch pkgconf python2.7 python3 python3-pyelftools python3-setuptools qemu-utils rsync scons squashfs-tools subversion swig texinfo uglifyjs upx-ucl unzip vim wget xmlto xxd zlib1g-dev
 
-          # 开启 8G 虚拟内存，防止爆内存
-          sudo fallocate -l 8G /swapfile || true
-          sudo chmod 600 /swapfile || true
-          sudo mkswap /swapfile || true
-          sudo swapon /swapfile || true
-          free -h
-
-      - name: 4. 添加全家桶插件
+      # --- 核心配置 ---
+      - name: 自定义配置 (监控板全家桶)
         run: |
-          git clone https://github.com/wshcxl/5G-Modem-Support.git package/5g-modem-support
-          git clone https://github.com/kongfl888/luci-app-adguardhome.git package/luci-app-adguardhome
-          git clone https://github.com/fw876/helloworld.git package/luci-app-ssr-plus
-          git clone https://github.com/UnblockNeteaseMusic/luci-app-unblockneteasemusic.git package/luci-app-unblockneteasemusic
-          git clone https://github.com/4IceG/luci-app-sms-tool.git package/luci-app-sms-tool
-
-      - name: 5. 更新 Feeds
-        run: |
+          # 更新 feeds
           ./scripts/feeds update -a
-          ./scripts/feeds install -a
 
-      - name: 6. 深度配置 (全功能锁定)
+          # 1. LuCI 图形界面
+          ./scripts/feeds install luci
+          ./scripts/feeds install luci-theme-argon
+
+          # 2. V2Ray (核心代理)
+          ./scripts/feeds install v2ray-core
+          ./scripts/feeds install luci-app-v2ray-server
+
+          # 3. 网易云解锁 (你刚才提醒加上的)
+          ./scripts/feeds install luci-app-unblockneteasemusic
+
+          # 4. 监控全家桶
+          # DDNS (动态域名解析)
+          ./scripts/feeds install luci-app-ddns
+          # AdGuard Home (去广告)
+          ./scripts/feeds install luci-app-adguardhome
+          # TurboACC (网络加速)
+          ./scripts/feeds install luci-app-turboacc
+          # Wrtbwmon (流量监控)
+          ./scripts/feeds install luci-app-wrtbwmon
+
+          # 5. USB 支持
+          ./scripts/feeds install kmod-usb-core kmod-usb2 kmod-usb3
+
+          # --- 生成配置 ---
+          cat > .config <<EOF
+          CONFIG_TARGET_ramips_mt7621=y
+          CONFIG_TARGET_ramips_mt7621_DEVICE_hiwifi_hc5962=y
+          CONFIG_DEVEL=y
+          CONFIG_CCACHE=y
+          
+          # LuCI 界面
+          CONFIG_PACKAGE_luci=y
+          CONFIG_PACKAGE_luci-base=y
+          CONFIG_PACKAGE_luci-mod-admin-full=y
+          CONFIG_PACKAGE_luci-theme-argon=y
+          CONFIG_PACKAGE_luci-i18n-base-zh-cn=y
+          
+          # V2Ray
+          CONFIG_PACKAGE_v2ray-core=y
+          CONFIG_PACKAGE_luci-app-v2ray-server=y
+          CONFIG_PACKAGE_luci-i18n-v2ray-server-zh-cn=y
+          
+          # 网易云解锁
+          CONFIG_PACKAGE_luci-app-unblockneteasemusic=y
+          CONFIG_PACKAGE_luci-i18n-unblockneteasemusic-zh-cn=y
+          
+          # 监控全家桶
+          CONFIG_PACKAGE_luci-app-ddns=y
+          CONFIG_PACKAGE_luci-i18n-ddns-zh-cn=y
+          CONFIG_PACKAGE_luci-app-adguardhome=y
+          CONFIG_PACKAGE_luci-i18n-adguardhome-zh-cn=y
+          CONFIG_PACKAGE_luci-app-turboacc=y
+          CONFIG_PACKAGE_luci-i18n-turboacc-zh-cn=y
+          CONFIG_PACKAGE_luci-app-wrtbwmon=y
+          CONFIG_PACKAGE_luci-i18n-wrtbwmon-zh-cn=y
+          
+          # USB 驱动
+          CONFIG_PACKAGE_kmod-usb-core=y
+          CONFIG_PACKAGE_kmod-usb2=y
+          CONFIG_PACKAGE_kmod-usb3=y
+          EOF
+          
+          make defconfig
+
+      # --- 全速编译 ---
+      - name: 全速编译
         run: |
-          rm -f .config
-          echo "CONFIG_TARGET_ramips=y" >> .config
-          echo "CONFIG_TARGET_ramips_mt7621=y" >> .config
-          echo "CONFIG_TARGET_ramips_mt7621_DEVICE_hiwifi_hc5962=y" >> .config
-          echo "CONFIG_TARGET_ROOTFS_SQUASHFS=y" >> .config
-          echo "CONFIG_PACKAGE_kmod-usb-net-rndis=y" >> .config
-          echo "CONFIG_PACKAGE_kmod-usb-net=y" >> .config
-          echo "CONFIG_PACKAGE_kmod-usb3=y" >> .config
-          echo "CONFIG_PACKAGE_kmod-usb-serial=y" >> .config
-          echo "CONFIG_PACKAGE_kmod-usb-serial-option=y" >> .config
-          echo "CONFIG_PACKAGE_usbmode=y" >> .config
-          echo "CONFIG_PACKAGE_comgt=y" >> .config
-          echo "CONFIG_PACKAGE_luci=y" >> .config
-          echo "CONFIG_PACKAGE_luci-i18n-base-zh-cn=y" >> .config
-          echo "CONFIG_PACKAGE_luci-app-opkg=y" >> .config
-          echo "CONFIG_PACKAGE_luci-app-5g-modem-support=y" >> .config
-          echo "CONFIG_PACKAGE_luci-i18n-5g-modem-support-zh-cn=y" >> .config
-          echo "CONFIG_PACKAGE_luci-app-hypermodem=y" >> .config
-          echo "CONFIG_PACKAGE_luci-app-adguardhome=y" >> .config
-          echo "CONFIG_PACKAGE_luci-app-ssr-plus=y" >> .config
-          echo "CONFIG_PACKAGE_luci-app-ssr-plus_INCLUDE_V2ray=y" >> .config
-          echo "CONFIG_PACKAGE_luci-app-ssr-plus_INCLUDE_Xray=y" >> .config
-          echo "CONFIG_PACKAGE_luci-app-unblockneteasemusic=y" >> .config
-          echo "CONFIG_PACKAGE_luci-app-sms-tool=y" >> .config
-          echo "CONFIG_PACKAGE_luci-app-turboacc=y" >> .config
-          echo "CONFIG_PACKAGE_kmod-tcp-bbr=y" >>
+          make -j$(nproc)
+          
+      # --- 上传 ---
+      - name: 上传固件
+        uses: actions/upload-artifact@v3
+        with:
+          name: 极路由4-监控板固件
+          path: bin/targets/ramips/mt7621/
 
