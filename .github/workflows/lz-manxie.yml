@@ -1,28 +1,47 @@
-name: 极路由4 - 满血(最终修复版)
+name: 极路由4 - Ubuntu 18.04 终极修复版
 
 on:
   workflow_dispatch:
 
 jobs:
   build_firmware:
-    runs-on: ubuntu-latest
+    # 关键点：使用 Ubuntu 18.04，原生支持 Python 2.7，兼容性最强
+    runs-on: ubuntu-18.04
 
     steps:
+      # --- 1. 检出代码 ---
       - name: 检出代码
-        uses: actions/checkout@v4
+        uses: actions/checkout@v3
 
-      # --- 扩充虚拟内存 (防止编译崩溃) ---
+      # --- 2. 扩充 Swap (防止内存溢出，必做) ---
       - name: 增加 Swap 虚拟内存
         run: |
           sudo swapoff -a
           sudo rm -f /swapfile
+          echo "⏳ 正在创建 4GB Swap 文件..."
           sudo dd if=/dev/zero of=/swapfile bs=1M count=4096
           sudo chmod 600 /swapfile
           sudo mkswap /swapfile
           sudo swapon /swapfile
-          echo " 虚拟内存已扩充至 4GB，防止编译崩溃"
+          free -h # 显示内存状态
 
-      # --- 修复 LZ4 ---
+      # --- 3. 安装依赖 (Ubuntu 18.04 原生支持 Python 2.7) ---
+      - name: 安装编译环境
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ack antlr3 asciidoc autoconf automake autopoint \
+            binutils bison build-essential bzip2 ccache cmake cpio curl \
+            device-tree-compiler fastjar flex gawk gettext gcc-multilib \
+            g++-multilib git gperf haveged help2man intltool \
+            libc6-dev-i386 libelf-dev libglib2.0-dev libgmp3-dev libltdl-dev \
+            libmpc-dev libmpfr-dev libncurses5-dev libncursesw5-dev \
+            libreadline-dev libssl-dev libtool lrzsz mkisofs msmtp \
+            ninja-build p7zip p7zip-full patch pkgconf python2.7 python-dev \
+            python3 python3-pip python3-setuptools python3-pyelftools \
+            qemu-utils rsync scons squashfs-tools subversion swig texinfo \
+            uglifyjs upx-ucl unzip vim wget xmlto xxd zlib1g-dev
+
+      # --- 4. 修复 LZ4 (如果你有这个包的话) ---
       - name: 修复 LZ4 源码包
         run: |
           mkdir -p dl
@@ -30,113 +49,88 @@ jobs:
             cp -f lz4-1.10.0.tar.gz dl/lz4-1.10.0.tar.gz
             echo " LZ4 修复包已就位"
           else
-            echo " 错误：请在仓库根目录上传 lz4-1.10.0.tar.gz"
-            exit 1
+            echo "⚠️ 提示：未检测到 lz4-1.10.0.tar.gz，尝试直接下载..."
           fi
 
-      # --- 安装依赖 (已修复 Python 2.7 报错) ---
-      - name: 安装编译环境 (忽略 Python2.7 缺失)
-        run: |
-          sudo apt-get update
-          
-          # 尝试安装所有依赖
-          # python2.7 在 Ubuntu 24.04 中已移除，但 OpenWrt 源码自带或使用 Python3，不影响编译
-          sudo apt-get install -y --no-install-recommends \
-            ack antlr3 asciidoc autoconf automake autopoint binutils bison \
-            build-essential bzip2 ccache cmake cpio curl \
-            device-tree-compiler fastjar flex gawk gettext \
-            gcc-multilib g++-multilib git gperf haveged help2man intltool \
-            libc6-dev-i386 libelf-dev libglib2.0-dev libgmp3-dev libltdl-dev \
-            libmpc-dev libmpfr-dev libncurses5-dev libncursesw5-dev \
-            libpython3-dev libreadline-dev libssl-dev libtool lrzsz mkisofs \
-            msmtp ninja-build p7zip p7zip-full patch pkgconf \
-            python3 python3-pyelftools python3-setuptools qemu-utils \
-            rsync scons squashfs-tools subversion swig texinfo \
-            uglifyjs upx-ucl unzip vim wget xmlto xxd zlib1g-dev || true
-          
-          echo "️ 注意：python2.7 在 Ubuntu 24.04 中已移除，系统将自动使用源码自带的 Python 或 Python3 替代，继续编译..."
-
-      # --- 核心配置 ---
-      - name: 自定义配置 (监控板全家桶)
+      # --- 5. 核心配置 (包含你要求的所有插件) ---
+      - name: 自定义配置 (全家桶)
         run: |
           # 更新 feeds
           ./scripts/feeds update -a
+          
+          # 安装所有基础 feeds (防止依赖缺失)
+          ./scripts/feeds install -a
 
-          # 1. LuCI 图形界面
-          ./scripts/feeds install luci
-          ./scripts/feeds install luci-theme-argon
-
-          # 2. V2Ray (核心代理)
-          ./scripts/feeds install v2ray-core
-          ./scripts/feeds install luci-app-v2ray-server
-
-          # 3. 网易云解锁
-          ./scripts/feeds install luci-app-unblockneteasemusic
-
-          # 4. 监控全家桶
-          # DDNS (动态域名解析)
-          ./scripts/feeds install luci-app-ddns
-          # AdGuard Home (去广告)
-          ./scripts/feeds install luci-app-adguardhome
-          # TurboACC (网络加速)
-          ./scripts/feeds install luci-app-turboacc
-          # Wrtbwmon (流量监控)
-          ./scripts/feeds install luci-app-wrtbwmon
-
-          # 5. USB 支持
-          ./scripts/feeds install kmod-usb-core kmod-usb2 kmod-usb3
-
-          # --- 生成配置 ---
+          # --- 生成 .config 文件 ---
           cat > .config <<EOF
           CONFIG_TARGET_ramips_mt7621=y
           CONFIG_TARGET_ramips_mt7621_DEVICE_hiwifi_hc5962=y
           CONFIG_DEVEL=y
           CONFIG_CCACHE=y
+          CONFIG_IPV6=y
           
-          # LuCI 界面
+          # --- 基础 LuCI ---
           CONFIG_PACKAGE_luci=y
           CONFIG_PACKAGE_luci-base=y
           CONFIG_PACKAGE_luci-mod-admin-full=y
           CONFIG_PACKAGE_luci-theme-argon=y
           CONFIG_PACKAGE_luci-i18n-base-zh-cn=y
           
-          # V2Ray
+          # --- 代理与解锁插件 ---
+          # V2Ray 核心与服务端
           CONFIG_PACKAGE_v2ray-core=y
           CONFIG_PACKAGE_luci-app-v2ray-server=y
           CONFIG_PACKAGE_luci-i18n-v2ray-server-zh-cn=y
-          
           # 网易云解锁
           CONFIG_PACKAGE_luci-app-unblockneteasemusic=y
           CONFIG_PACKAGE_luci-i18n-unblockneteasemusic-zh-cn=y
           
-          # 监控全家桶
+          # --- 监控全家桶 ---
+          # DDNS
           CONFIG_PACKAGE_luci-app-ddns=y
           CONFIG_PACKAGE_luci-i18n-ddns-zh-cn=y
+          # AdGuard Home
           CONFIG_PACKAGE_luci-app-adguardhome=y
           CONFIG_PACKAGE_luci-i18n-adguardhome-zh-cn=y
+          # TurboACC 网络加速
           CONFIG_PACKAGE_luci-app-turboacc=y
           CONFIG_PACKAGE_luci-i18n-turboacc-zh-cn=y
+          # 流量监控
           CONFIG_PACKAGE_luci-app-wrtbwmon=y
           CONFIG_PACKAGE_luci-i18n-wrtbwmon-zh-cn=y
           
-          # USB 驱动
+          # --- 常用工具 ---
+          CONFIG_PACKAGE_luci-app-upnp=y
+          CONFIG_PACKAGE_luci-i18n-upnp-zh-cn=y
+          CONFIG_PACKAGE_luci-app-samba=y
+          CONFIG_PACKAGE_luci-i18n-samba-zh-cn=y
+          
+          # --- USB 驱动支持 ---
           CONFIG_PACKAGE_kmod-usb-core=y
           CONFIG_PACKAGE_kmod-usb2=y
           CONFIG_PACKAGE_kmod-usb3=y
+          CONFIG_PACKAGE_kmod-usb-storage=y
+          CONFIG_PACKAGE_kmod-fs-ext4=y
+          CONFIG_PACKAGE_kmod-fs-vfat=y
+          CONFIG_PACKAGE_kmod-nls-cp437=y
+          CONFIG_PACKAGE_kmod-nls-iso8859-1=y
+          CONFIG_PACKAGE_kmod-nls-utf8=y
           EOF
-          
+
+          # 加载配置
           make defconfig
 
-      # --- 编译 (强制使用 Python3) ---
+      # --- 6. 编译 ---
       - name: 编译固件
         run: |
-          # 使用 -j2 限制线程，防止内存溢出；USE_PYTHON3=1 强制使用 Python3
-          make -j2 USE_PYTHON3=1 V=s
-          
-      # --- 上传 ---
-      - name: 上传固件
-        uses: actions/upload-artifact@v4
-        with:
-          name: 极路由4-监控板-最终修复版
-          path: bin/targets/ramips/mt7621/
+          # 关键优化：
+          # 1. 使用 ccache 加速
+          # 2. -j2 线程数限制，防止 2核CPU 爆内存
+          make -j2 V=s
 
+      # --- 7. 上传 ---
+      - name: 上传固件
+        uses: actions/upload-artifact@v3
+        with:
+          name: 极路由4-Ubuntu1804-全家桶
+          path: bin/targets/ramips/mt7621/
