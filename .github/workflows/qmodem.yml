@@ -35,7 +35,7 @@ jobs:
           ./scripts/feeds update -a
           ./scripts/feeds install -a
 
-            - name: 📝 5. 深度配置 (注入 5G 驱动与 QModem)
+      - name: 📝 5. 深度配置 (注入 5G 驱动与 QModem)
         run: |
           # --- 核心配置开始 ---
           rm -f .config
