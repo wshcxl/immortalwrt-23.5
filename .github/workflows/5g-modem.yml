@@ -47,24 +47,44 @@ jobs:
           
           # 2. 锁定文件系统：Squashfs (生成 Factory 固件必备)
           echo "CONFIG_TARGET_ROOTFS_SQUASHFS=y" >> .config
-          
-          # 3. 注入 5G RNDIS 驱动 (确保 USB 通信协议被编译)
-          # kmod-usb-net-rndis: 负责 USB 转网口的核心驱动
-          echo "CONFIG_PACKAGE_kmod-usb-net-rndis=y" >> .config
-          # kmod-usb-net: USB 网卡基础驱动
-          echo "CONFIG_PACKAGE_kmod-usb-net=y" >> .config
-          # kmod-usb3: 极路由4有USB3.0，必须开启
-          echo "CONFIG_PACKAGE_kmod-usb3=y" >> .config
-          # usb-modeswitch: 负责切换 5G 模块模式 (如从存储模式切到串口模式)
-          echo "CONFIG_PACKAGE_usbmode=y" >> .config
-          # comgt: 用于控制 3G/4G/5G 模块的工具
-          echo "CONFIG_PACKAGE_comgt=y" >> .config
-          
-          # 4. 注入 5G 插件本身
-          echo "CONFIG_PACKAGE_luci-app-5g-modem-support=y" >> .config
-          echo "CONFIG_PACKAGE_luci-i18n-5g-modem-support-zh-cn=y" >> .config
 
-          # 5. 生成配置
+          # 3. ⭐ 强制安装 LuCI 核心 (解决进不去网页的问题)
+          # 这是图形界面的最基础核心
+          echo "CONFIG_PACKAGE_luci=y" >> .config
+          echo "CONFIG_PACKAGE_luci-base=y" >> .config
+          # 安装完整的管理界面 (那个有各种设置按钮的页面)
+          echo "CONFIG_PACKAGE_luci-mod-admin-full=y" >> .config
+          # 安装默认的 Bootstrap 主题 (轻量且稳定)
+          echo "CONFIG_PACKAGE_luci-theme-bootstrap=y" >> .config
+          # 安装中文语言包
+          echo "CONFIG_PACKAGE_luci-i18n-base-zh-cn=y" >> .config
+          # 强制默认语言设为中文
+          echo "CONFIG_LUCI_LANG_zh-cn=y" >> .config
+
+          
+          # 4. 注入 5G RNDIS 驱动
+           # 负责 USB 转网口的核心驱动
+          echo "CONFIG_PACKAGE_kmod-usb-net-rndis=y" >> .config
+           # USB 网卡基础驱动
+          echo "CONFIG_PACKAGE_kmod-usb-net=y" >> .config
+           # 极路由4有USB 2.0 和 3.0，必须开启
+          echo "CONFIG_PACKAGE_kmod-usb3=y" >> .config
+          echo "CONFIG_PACKAGE_kmod-usb2=y" >> .config
+           # usb-modeswitch: 负责切换 5G 模块模式 (如从存储模式切到串口模式)
+          echo "CONFIG_PACKAGE_usb-modeswitch=y" >> .config
+           # 用于控制发送 AT 指令给5G 模块的工具
+          echo "CONFIG_PACKAGE_comgt=y" >> .config
+         
+          
+           # 5. 注入你指定的 5G 插件 (关键修改点)
+          # 根据文档里的文件夹名，准确填写插件名
+          echo "CONFIG_PACKAGE_quectel_cm_5G=y" >> .config
+          echo "CONFIG_PACKAGE_luci-app-modem=y" >> .config
+          # 关键：忽略这个插件的中文语言检查
+          echo "CONFIG_LUCI_LANG_zh-cn_PACKAGE_luci-app-modem=n" >> .config
+
+
+          # 6. 生成配置
           make defconfig
           # --- 核心配置结束 ---
 
@@ -74,23 +94,21 @@ jobs:
       - name: 🏗️ 7. 开始编译
         run: make -j$(nproc) V=s
 
-      - name: 🧹 8. 收集固件 (通杀版)
+      - name: 🧹 8. 收集与重命名固件
         run: |
           mkdir -p firmware_output
           
-          # 1. 先按常规名字找 (你的原逻辑)
-          find bin -type f -name "*hiwifi*.bin" -exec cp {} firmware_output/ \;
+          # 查找生成的 factory 固件
+          # 极路由4增强版的固件通常包含 "hiwifi" 和 "factory" 字样
+          find bin -type f -name "*hiwifi*factory*.bin" -exec cp {} firmware_output/ \;
           
-          # 2. 如果上面没找到，就找所有 bin 文件 (保底)
+          # 如果没找到 factory，就找 squashfs (兜底方案)
           if [ ! "$(ls -A firmware_output/*.bin 2>/dev/null)" ]; then
-             echo "⚠️ 未找到 hiwifi 关键词固件，正在打包所有 bin 文件..."
-             find bin -type f -name "*.bin" -exec cp {} firmware_output/ \;
+             find bin -type f -name "*hiwifi*squashfs*.bin" -exec cp {} firmware_output/ \;
           fi
           
-          # 3. 列出所有找到的文件 (方便你检查)
           echo "✅ 编译产物清单："
           ls -lh firmware_output/
-
 
       - name: 📤 9. 上传固件
         uses: actions/upload-artifact@v4
