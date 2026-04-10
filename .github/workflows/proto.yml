@@ -1,4 +1,4 @@
-name: proto USB 5G RNDIS
+name: Build OpenWrt USB 5G RNDIS
 
 on:
   workflow_dispatch:
@@ -20,7 +20,6 @@ jobs:
         run: |
           git clone https://github.com/immortalwrt/immortalwrt.git openwrt
           cd openwrt
-          # 初始化 feeds
           ./scripts/feeds update -a
           ./scripts/feeds install -a
 
@@ -109,8 +108,8 @@ jobs:
               echo "USB 5G 已启动"
           }
           EOF
-          # 脚本授权
-          chmod +x openwrt/package/base-files/files/etc/init.d/usb5g_autodial
+          # 修复了这里的路径错误，去掉了前面的 openwrt/
+          chmod +x package/base-files/files/etc/init.d/usb5g_autodial
 
       - name: Build
         run: |
