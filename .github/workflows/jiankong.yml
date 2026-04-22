@@ -47,18 +47,35 @@ jobs:
           echo "CONFIG_TARGET_ramips_mt7621=y" >> .config
           echo "CONFIG_TARGET_ramips_mt7621_DEVICE_hiwifi_hc5962=y" >> .config
           echo "CONFIG_TARGET_ROOTFS_SQUASHFS=y" >> .config
-          # 🔹 2. LuCI 核心（最小必要）
+                    # 🔹 2. LuCI 核心（最小必要）
           echo "CONFIG_PACKAGE_luci=y" >> .config
           echo "CONFIG_PACKAGE_luci-base=y" >> .config
           echo "CONFIG_PACKAGE_luci-mod-admin-full=y" >> .config
           echo "CONFIG_PACKAGE_luci-mod-network=y" >> .config
           echo "CONFIG_PACKAGE_luci-mod-status=y" >> .config
 
-          # 🔹 3. 🎨 主题 + 🌐 汉化（精简）
+          # 🔹 3. 🎨 主题 + 🌐 汉化（完整覆盖所有模块）
           echo "CONFIG_PACKAGE_luci-theme-argon=y" >> .config
+          
+          # 核心语言设置
           echo "CONFIG_LUCI_LANG_zh-cn=y" >> .config
           echo "CONFIG_PACKAGE_luci-i18n-base-zh-cn=y" >> .config
+          
+          # 🔥 关键：逐个模块添加中文包（按你启用的功能来）
           echo "CONFIG_PACKAGE_luci-i18n-admin-full-zh-cn=y" >> .config
+          echo "CONFIG_PACKAGE_luci-i18n-network-zh-cn=y" >> .config
+          echo "CONFIG_PACKAGE_luci-i18n-wireless-zh-cn=y" >> .config
+          echo "CONFIG_PACKAGE_luci-i18n-firewall-zh-cn=y" >> .config
+          echo "CONFIG_PACKAGE_luci-i18n-opkg-zh-cn=y" >> .config
+          echo "CONFIG_PACKAGE_luci-i18n-system-zh-cn=y" >> .config
+          echo "CONFIG_PACKAGE_luci-i18n-services-zh-cn=y" >> .config
+          echo "CONFIG_PACKAGE_luci-i18n-status-zh-cn=y" >> .config
+          
+          # 第三方插件中文包（按你安装的插件来）
+          echo "CONFIG_PACKAGE_luci-i18n-adbyby-plus-zh-cn=y" >> .config
+          echo "CONFIG_PACKAGE_luci-i18n-upnp-zh-cn=y" >> .config
+          echo "CONFIG_PACKAGE_luci-i18n-samba-zh-cn=y" >> .config
+          # QModem 如果有中文包就加上（没有也不会影响编译）
 
           # 🔹 4. 🔥 无线功能修复（关键！）
           # HC5962芯片：MT7603EN(2.4G) + MT7612EN(5G)
@@ -80,23 +97,21 @@ jobs:
           echo "CONFIG_PACKAGE_usb-modeswitch=y" >> .config
           echo "CONFIG_PACKAGE_comgt=y" >> .config
           echo "CONFIG_PACKAGE_luci-app-qmodem-next=y" >> .config
-
           # 🔹 7. 🚫 去广告插件：Adbyby Plus+
           echo "CONFIG_PACKAGE_adbyby=y" >> .config
           echo "CONFIG_PACKAGE_luci-app-adbyby-plus=y" >> .config
-          echo "CONFIG_PACKAGE_luci-i18n-adbyby-plus-zh-cn=y" >> .config
 
           # 🔹 8. 🔄 UPnP 支持（外网穿透关键）
           echo "CONFIG_PACKAGE_miniupnpd=y" >> .config
           echo "CONFIG_PACKAGE_luci-app-upnp=y" >> .config
-          echo "CONFIG_PACKAGE_luci-i18n-upnp-zh-cn=y" >> .config
 
           # 🔹 9. 📹 NVR万能对接套件（多协议支持）
           # 核心工具
           echo "CONFIG_PACKAGE_ffmpeg=y" >> .config
           echo "CONFIG_PACKAGE_curl=y" >> .config
           echo "CONFIG_PACKAGE_jq=y" >> .config
-          # ONVIF协议支持（自动发现设备+获取流地址）          echo "CONFIG_PACKAGE_onvif-utils=y" >> .config
+          # ONVIF协议支持（自动发现设备+获取流地址）
+          echo "CONFIG_PACKAGE_onvif-utils=y" >> .config
           # SMB共享支持（直接读取录像文件）
           echo "CONFIG_PACKAGE_samba36-server=y" >> .config
           echo "CONFIG_PACKAGE_luci-app-samba=y" >> .config
@@ -106,6 +121,10 @@ jobs:
           # 🔹 10. 系统基础（仅保留必要）
           echo "CONFIG_PACKAGE_luci-app-opkg=y" >> .config
           echo "CONFIG_PACKAGE_kmod-tun=y" >> .config
+
+          # 🔹 10.5 防止语言包被精简掉
+          echo "CONFIG_ALL_NONSHARED=n" >> .config
+          echo "CONFIG_ALL_KMODS=n" >> .config
 
           # 🔹 11. 生成配置
           make defconfig
@@ -126,7 +145,6 @@ jobs:
           fi
           echo "✅ 编译产物："
           ls -lh firmware_output/
-
       - name: 📤 9. 上传固件
         uses: actions/upload-artifact@v4
         with:
