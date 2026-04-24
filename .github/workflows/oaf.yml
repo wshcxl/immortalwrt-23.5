@@ -1,4 +1,4 @@
-name: 🚀 监控|OAF+NVR|国内镜像加速版
+name: 🚀 监控|OAF+NVR|汉化+无线修复版
 
 on:
   workflow_dispatch:
@@ -19,17 +19,15 @@ jobs:
           sudo apt-get install -y build-essential libncurses5-dev gawk zlib1g-dev git python3 python3-pip unzip wget curl file
           pip3 install --break-system-packages pyyaml pygments markdown Unidecode
 
-      - name: 📥 3. 添加插件源（✅ 修复：移除失效代理，直连GitHub）
+      - name: 📥 3. 添加插件源
         run: |
           echo "👉 正在下载 5G Modem Support 插件..."
           rm -rf package/QModem
           git clone https://github.com/wshcxl/QModem.git package/QModem
-          
           echo "👉 正在下载 OpenAppFilter (OAF) 插件..."
           rm -rf package/OpenAppFilter
           git clone https://github.com/wshcxl/Open-App.git package/OpenAppFilter
-          
-          echo "👉 正在添加第三方插件源（GitHub Actions 直连）..."
+          echo "👉 正在添加第三方插件源..."
           git clone --depth=1 https://github.com/kenzok8/openwrt-packages package/kenzok8
           git clone --depth=1 https://github.com/kenzok8/small package/small
 
@@ -47,30 +45,37 @@ jobs:
           echo "src/gz immortalwrt_luci https://mirrors.tuna.tsinghua.edu.cn/immortalwrt/releases/23.05.0/packages/mipsel_24kc/luci" >> files/etc/opkg/distfeeds.conf
           echo "src/gz immortalwrt_packages https://mirrors.tuna.tsinghua.edu.cn/immortalwrt/releases/23.05.0/packages/mipsel_24kc/packages" >> files/etc/opkg/distfeeds.conf
           echo "src/gz immortalwrt_routing https://mirrors.tuna.tsinghua.edu.cn/immortalwrt/releases/23.05.0/packages/mipsel_24kc/routing" >> files/etc/opkg/distfeeds.conf
-          echo "src/gz immortalwrt_telephony https://mirrors.tuna.tsinghua.edu.cn/immortalwrt/releases/23.05.0/packages/mipsel_24kc/telephony" >> files/etc/opkg/distfeeds.conf          echo "src/gz kenzok8 https://raw.githubusercontent.com/kenzok8/openwrt-packages/main" > files/etc/opkg/customfeeds.conf
-          echo "src/gz small https://raw.githubusercontent.com/kenzok8/small/main" >> files/etc/opkg/customfeeds.conf
-          echo "dest root /" > files/etc/opkg.conf
+          echo "src/gz immortalwrt_telephony https://mirrors.tuna.tsinghua.edu.cn/immortalwrt/releases/23.05.0/packages/mipsel_24kc/telephony" >> files/etc/opkg/distfeeds.conf
+          echo "src/gz kenzok8 https://raw.githubusercontent.com/kenzok8/openwrt-packages/main" > files/etc/opkg/customfeeds.conf
+          echo "src/gz small https://raw.githubusercontent.com/kenzok8/small/main" >> files/etc/opkg/customfeeds.conf          echo "dest root /" > files/etc/opkg.conf
           echo "dest ram /tmp" >> files/etc/opkg.conf
           echo "lists_dir ext /var/opkg-lists" >> files/etc/opkg.conf
           echo "option overlay_root /overlay" >> files/etc/opkg.conf
           echo "option check_signature" >> files/etc/opkg.conf
           echo "✅ 国内镜像源配置已预置"
 
-      - name: 📝 5. 深度配置
+      - name: 📝 5. 深度配置（✅ 汉化+无线修复核心）
         run: |
           rm -f .config
+          
+          # 🔹 1. 设备锁定
           echo "CONFIG_TARGET_ramips=y" >> .config
           echo "CONFIG_TARGET_ramips_mt7621=y" >> .config
           echo "CONFIG_TARGET_ramips_mt7621_DEVICE_hiwifi_hc5962=y" >> .config
           echo "CONFIG_TARGET_ROOTFS_SQUASHFS=y" >> .config
+          
+          # 🔹 2. LuCI 核心
           echo "CONFIG_PACKAGE_luci=y" >> .config
           echo "CONFIG_PACKAGE_luci-base=y" >> .config
           echo "CONFIG_PACKAGE_luci-mod-admin-full=y" >> .config
           echo "CONFIG_PACKAGE_luci-mod-network=y" >> .config
           echo "CONFIG_PACKAGE_luci-mod-status=y" >> .config
-          echo "CONFIG_PACKAGE_luci-theme-argon=y" >> .config
+          
+          # 🔹 3. 🌐 汉化修复（关键✅）
           echo "CONFIG_LUCI_LANG_zh-cn=y" >> .config
+          # 核心语言包（必须精确包名）
           echo "CONFIG_PACKAGE_luci-i18n-base-zh-cn=y" >> .config
+          # 常用模块语言包（确保编译时不被精简）
           echo "CONFIG_PACKAGE_luci-i18n-admin-full-zh-cn=y" >> .config
           echo "CONFIG_PACKAGE_luci-i18n-network-zh-cn=y" >> .config
           echo "CONFIG_PACKAGE_luci-i18n-wireless-zh-cn=y" >> .config
@@ -83,12 +88,29 @@ jobs:
           echo "CONFIG_PACKAGE_luci-i18n-upnp-zh-cn=y" >> .config
           echo "CONFIG_PACKAGE_luci-i18n-samba-zh-cn=y" >> .config
           echo "CONFIG_PACKAGE_luci-i18n-oaf-zh-cn=y" >> .config
+          # ✅ 预置默认语言为中文（避免首次启动英文）
+          echo "CONFIG_LUCI_DEFAULT_LANG=zh-cn" >> .config
+          
+          # 🔹 4. 🎨 主题
+          echo "CONFIG_PACKAGE_luci-theme-argon=y" >> .config
+          
+          # 🔹 5. 📶 无线修复（关键✅）
+          # 基础无线依赖（必须）
+          echo "CONFIG_PACKAGE_kmod-cfg80211=y" >> .config          echo "CONFIG_PACKAGE_kmod-mac80211=y" >> .config
+          # 极路由4增强版芯片驱动
           echo "CONFIG_PACKAGE_kmod-mt7603=y" >> .config
           echo "CONFIG_PACKAGE_kmod-mt76x2=y" >> .config
+          # 加密支持（23.05 用 wolfssl）
           echo "CONFIG_PACKAGE_wpad-basic-wolfssl=y" >> .config
+          # LuCI 无线界面
           echo "CONFIG_PACKAGE_luci-proto-wireless=y" >> .config
+          echo "CONFIG_PACKAGE_luci-app-wireless=y" >> .config
+          
+          # 🔹 6. 防火墙 + 网络
           echo "CONFIG_PACKAGE_firewall4=y" >> .config
           echo "CONFIG_PACKAGE_luci-proto-pppoe=y" >> .config
+          
+          # 🔹 7. 5G + QModem
           echo "CONFIG_PACKAGE_kmod-usb-net-rndis=y" >> .config
           echo "CONFIG_PACKAGE_kmod-usb-net=y" >> .config
           echo "CONFIG_PACKAGE_kmod-usb3=y" >> .config
@@ -96,10 +118,15 @@ jobs:
           echo "CONFIG_PACKAGE_usb-modeswitch=y" >> .config
           echo "CONFIG_PACKAGE_comgt=y" >> .config
           echo "CONFIG_PACKAGE_luci-app-qmodem-next=y" >> .config
-          echo "CONFIG_PACKAGE_adbyby=y" >> .config          echo "CONFIG_PACKAGE_luci-app-adbyby-plus=y" >> .config
+          
+          # 🔹 8. 去广告 + UPnP + OAF
+          echo "CONFIG_PACKAGE_adbyby=y" >> .config
+          echo "CONFIG_PACKAGE_luci-app-adbyby-plus=y" >> .config
           echo "CONFIG_PACKAGE_miniupnpd=y" >> .config
           echo "CONFIG_PACKAGE_luci-app-upnp=y" >> .config
           echo "CONFIG_PACKAGE_luci-app-oaf=y" >> .config
+          
+          # 🔹 9. NVR 套件
           echo "CONFIG_PACKAGE_ffmpeg=y" >> .config
           echo "CONFIG_PACKAGE_curl=y" >> .config
           echo "CONFIG_PACKAGE_jq=y" >> .config
@@ -107,51 +134,70 @@ jobs:
           echo "CONFIG_PACKAGE_samba36-server=y" >> .config
           echo "CONFIG_PACKAGE_luci-app-samba=y" >> .config
           echo "CONFIG_PACKAGE_nmap=y" >> .config
+          
+          # 🔹 10. 系统基础
           echo "CONFIG_PACKAGE_luci-app-opkg=y" >> .config
           echo "CONFIG_PACKAGE_kmod-tun=y" >> .config
-          echo "CONFIG_TARGET_ROOT_PASSWORD=\"password\"" >> .config
+          
+          # 🔹 11. 密码 + 防止精简（关键✅）
+          echo 'CONFIG_TARGET_ROOT_PASSWORD="password"' >> .config
+          # ✅ 禁用全局精简，确保语言包/驱动不被砍
           echo "CONFIG_ALL_NONSHARED=n" >> .config
           echo "CONFIG_ALL_KMODS=n" >> .config
-          make defconfig
+          echo "CONFIG_ALL=y" >> .config
+                    make defconfig
 
-      - name: 📡 5.5 预设 WiFi 配置
+      - name: 📡 5.5 预设 WiFi 配置（✅ 通用版，移除硬编码path）
         run: |
           mkdir -p files/etc/config
           mkdir -p files/etc/hotplug.d/iface
-          echo "config wifi-device 'radio0'" > files/etc/config/wireless
-          echo "    option type 'mac80211'" >> files/etc/config/wireless
-          echo "    option channel '11'" >> files/etc/config/wireless
-          echo "    option hwmode '11g'" >> files/etc/config/wireless
-          echo "    option path 'platform/10180000.usb/usb-1/1-1/1-1.3/1-1.3:1.0'" >> files/etc/config/wireless
-          echo "    option htmode 'HT20'" >> files/etc/config/wireless
-          echo "    option disabled '0'" >> files/etc/config/wireless
-          echo "" >> files/etc/config/wireless
-          echo "config wifi-iface" >> files/etc/config/wireless
-          echo "    option device 'radio0'" >> files/etc/config/wireless
-          echo "    option network 'lan'" >> files/etc/config/wireless
-          echo "    option mode 'ap'" >> files/etc/config/wireless
-          echo "    option ssid 'immortalwrt'" >> files/etc/config/wireless
-          echo "    option encryption 'psk2'" >> files/etc/config/wireless
-          echo "    option key 'zxcvbnm.0'" >> files/etc/config/wireless
-          echo "" >> files/etc/config/wireless
-          echo "config wifi-device 'radio1'" >> files/etc/config/wireless
-          echo "    option type 'mac80211'" >> files/etc/config/wireless
-          echo "    option channel '149'" >> files/etc/config/wireless
-          echo "    option hwmode '11a'" >> files/etc/config/wireless
-          echo "    option path 'platform/10180000.usb/usb-1/1-1/1-1.4/1-1.4:1.0'" >> files/etc/config/wireless
-          echo "    option htmode 'VHT80'" >> files/etc/config/wireless
-          echo "    option disabled '0'" >> files/etc/config/wireless
-          echo "" >> files/etc/config/wireless
-          echo "config wifi-iface" >> files/etc/config/wireless
-          echo "    option device 'radio1'" >> files/etc/config/wireless
-          echo "    option network 'lan'" >> files/etc/config/wireless
-          echo "    option mode 'ap'" >> files/etc/config/wireless          echo "    option ssid 'immortalwrt-5G'" >> files/etc/config/wireless
-          echo "    option encryption 'psk2'" >> files/etc/config/wireless
-          echo "    option key 'zxcvbnm.0'" >> files/etc/config/wireless
-          echo '#!/bin/sh' > files/etc/hotplug.d/iface/99-wifi-fix
-          echo '[ "$ACTION" = "ifup" ] && [ "$INTERFACE" = "lan" ] && {' >> files/etc/hotplug.d/iface/99-wifi-fix
-          echo '    wifi reload' >> files/etc/hotplug.d/iface/99-wifi-fix
-          echo '}' >> files/etc/hotplug.d/iface/99-wifi-fix
+          
+          # ✅ 通用无线配置：不指定path，让系统自动检测
+          cat > files/etc/config/wireless << 'EOF'
+config wifi-device 'radio0'
+    option type 'mac80211'
+    option channel '11'
+    option hwmode '11g'
+    option htmode 'HT20'
+    option disabled '0'
+
+config wifi-iface
+    option device 'radio0'
+    option network 'lan'
+    option mode 'ap'
+    option ssid 'immortalwrt'
+    option encryption 'psk2'
+    option key 'zxcvbnm.0'
+
+config wifi-device 'radio1'
+    option type 'mac80211'
+    option channel '149'
+    option hwmode '11a'
+    option htmode 'VHT80'
+    option disabled '0'
+
+config wifi-iface
+    option device 'radio1'
+    option network 'lan'
+    option mode 'ap'
+    option ssid 'immortalwrt-5G'
+    option encryption 'psk2'
+    option key 'zxcvbnm.0'
+EOF
+
+          # ✅ 首次启动自动检测无线硬件并应用配置
+          cat > files/etc/hotplug.d/iface/99-wifi-fix << 'EOF'
+#!/bin/sh
+[ "$ACTION" = "ifup" ] && [ "$INTERFACE" = "lan" ] && {
+  # 如果 wireless 配置为空，自动生成
+  if ! grep -q "option path" /etc/config/wireless 2>/dev/null; then
+    wifi detect > /tmp/wireless.new
+    # 保留用户预设的 ssid/key，合并新配置
+    grep "option ssid\|option key\|option encryption" /etc/config/wireless >> /tmp/wireless.new
+    mv /tmp/wireless.new /etc/config/wireless    wifi reload
+  fi
+}
+EOF
           chmod +x files/etc/hotplug.d/iface/99-wifi-fix
 
       - name: 📥 6. 下载源码包
@@ -172,12 +218,12 @@ jobs:
           echo "=========================================="
           echo "🎉 固件编译完成！"
           echo "📱 默认登录：192.168.1.1 / root / password"
+          echo "🌐 默认语言：中文（如仍英文，请手动切换）"
           echo "📶 WiFi: immortalwrt / immortalwrt-5G / zxcvbnm.0"
-          echo "🇨🇳 国内镜像源已预置，刷入后 opkg update 即可"
           echo "=========================================="
 
       - name: 📤 9. 上传固件
         uses: actions/upload-artifact@v4
         with:
-          name: immortalwrt-hc5962-CN-Mirror-Full
+          name: immortalwrt-hc5962-CN-Fix-Wireless
           path: firmware_output/*.bin
