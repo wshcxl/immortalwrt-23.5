@@ -19,17 +19,19 @@ jobs:
           sudo apt-get install -y build-essential libncurses5-dev gawk zlib1g-dev git python3 python3-pip unzip wget curl file
           pip3 install --break-system-packages pyyaml pygments markdown Unidecode
 
-      - name: 📥 3. 添加插件源
+      - name: 📥 3. 添加插件源（✅ 修复：移除失效代理，直连GitHub）
         run: |
           echo "👉 正在下载 5G Modem Support 插件..."
           rm -rf package/QModem
           git clone https://github.com/wshcxl/QModem.git package/QModem
+          
           echo "👉 正在下载 OpenAppFilter (OAF) 插件..."
           rm -rf package/OpenAppFilter
           git clone https://github.com/wshcxl/Open-App.git package/OpenAppFilter
-          echo "👉 正在添加第三方插件源（国内加速）..."
-          git clone --depth=1 https://ghproxy.com/https://github.com/kenzok8/openwrt-packages package/kenzok8
-          git clone --depth=1 https://ghproxy.com/https://github.com/kenzok8/small package/small
+          
+          echo "👉 正在添加第三方插件源（GitHub Actions 直连）..."
+          git clone --depth=1 https://github.com/kenzok8/openwrt-packages package/kenzok8
+          git clone --depth=1 https://github.com/kenzok8/small package/small
 
       - name: 🔌 4. 更新 Feeds
         run: |
@@ -45,9 +47,9 @@ jobs:
           echo "src/gz immortalwrt_luci https://mirrors.tuna.tsinghua.edu.cn/immortalwrt/releases/23.05.0/packages/mipsel_24kc/luci" >> files/etc/opkg/distfeeds.conf
           echo "src/gz immortalwrt_packages https://mirrors.tuna.tsinghua.edu.cn/immortalwrt/releases/23.05.0/packages/mipsel_24kc/packages" >> files/etc/opkg/distfeeds.conf
           echo "src/gz immortalwrt_routing https://mirrors.tuna.tsinghua.edu.cn/immortalwrt/releases/23.05.0/packages/mipsel_24kc/routing" >> files/etc/opkg/distfeeds.conf
-          echo "src/gz immortalwrt_telephony https://mirrors.tuna.tsinghua.edu.cn/immortalwrt/releases/23.05.0/packages/mipsel_24kc/telephony" >> files/etc/opkg/distfeeds.conf
-          echo "src/gz kenzok8 https://raw.githubusercontent.com/kenzok8/openwrt-packages/main" > files/etc/opkg/customfeeds.conf
-          echo "src/gz small https://raw.githubusercontent.com/kenzok8/small/main" >> files/etc/opkg/customfeeds.conf          echo "dest root /" > files/etc/opkg.conf
+          echo "src/gz immortalwrt_telephony https://mirrors.tuna.tsinghua.edu.cn/immortalwrt/releases/23.05.0/packages/mipsel_24kc/telephony" >> files/etc/opkg/distfeeds.conf          echo "src/gz kenzok8 https://raw.githubusercontent.com/kenzok8/openwrt-packages/main" > files/etc/opkg/customfeeds.conf
+          echo "src/gz small https://raw.githubusercontent.com/kenzok8/small/main" >> files/etc/opkg/customfeeds.conf
+          echo "dest root /" > files/etc/opkg.conf
           echo "dest ram /tmp" >> files/etc/opkg.conf
           echo "lists_dir ext /var/opkg-lists" >> files/etc/opkg.conf
           echo "option overlay_root /overlay" >> files/etc/opkg.conf
@@ -94,9 +96,9 @@ jobs:
           echo "CONFIG_PACKAGE_usb-modeswitch=y" >> .config
           echo "CONFIG_PACKAGE_comgt=y" >> .config
           echo "CONFIG_PACKAGE_luci-app-qmodem-next=y" >> .config
-          echo "CONFIG_PACKAGE_adbyby=y" >> .config
-          echo "CONFIG_PACKAGE_luci-app-adbyby-plus=y" >> .config
-          echo "CONFIG_PACKAGE_miniupnpd=y" >> .config          echo "CONFIG_PACKAGE_luci-app-upnp=y" >> .config
+          echo "CONFIG_PACKAGE_adbyby=y" >> .config          echo "CONFIG_PACKAGE_luci-app-adbyby-plus=y" >> .config
+          echo "CONFIG_PACKAGE_miniupnpd=y" >> .config
+          echo "CONFIG_PACKAGE_luci-app-upnp=y" >> .config
           echo "CONFIG_PACKAGE_luci-app-oaf=y" >> .config
           echo "CONFIG_PACKAGE_ffmpeg=y" >> .config
           echo "CONFIG_PACKAGE_curl=y" >> .config
@@ -143,9 +145,9 @@ jobs:
           echo "config wifi-iface" >> files/etc/config/wireless
           echo "    option device 'radio1'" >> files/etc/config/wireless
           echo "    option network 'lan'" >> files/etc/config/wireless
-          echo "    option mode 'ap'" >> files/etc/config/wireless
-          echo "    option ssid 'immortalwrt-5G'" >> files/etc/config/wireless
-          echo "    option encryption 'psk2'" >> files/etc/config/wireless          echo "    option key 'zxcvbnm.0'" >> files/etc/config/wireless
+          echo "    option mode 'ap'" >> files/etc/config/wireless          echo "    option ssid 'immortalwrt-5G'" >> files/etc/config/wireless
+          echo "    option encryption 'psk2'" >> files/etc/config/wireless
+          echo "    option key 'zxcvbnm.0'" >> files/etc/config/wireless
           echo '#!/bin/sh' > files/etc/hotplug.d/iface/99-wifi-fix
           echo '[ "$ACTION" = "ifup" ] && [ "$INTERFACE" = "lan" ] && {' >> files/etc/hotplug.d/iface/99-wifi-fix
           echo '    wifi reload' >> files/etc/hotplug.d/iface/99-wifi-fix
